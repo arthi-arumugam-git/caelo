@@ -1,0 +1,38 @@
+{
+  "name": "caelo",
+  "version": "0.1.0",
+  "description": "Caelo: see straight to the bottom of your code. Free security roast for AI-built apps (Lovable, Bolt, Cursor, v0, Replit): exposed keys, browser-leaked secrets, Supabase RLS, open Firebase rules, committed .env. Runs locally, reads files only, redacts secrets. CLI + MCP server.",
+  "type": "module",
+  "bin": {
+    "caelo": "bin/caelo.js"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "roast": "node bin/caelo.js",
+    "mcp": "node bin/caelo.js --mcp"
+  },
+  "keywords": [
+    "security",
+    "scanner",
+    "mcp",
+    "lovable",
+    "bolt",
+    "cursor",
+    "supabase",
+    "secrets",
+    "vibe-coding"
+  ],
+  "homepage": "https://caelo.sh",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.21.0"
+  }
+}
