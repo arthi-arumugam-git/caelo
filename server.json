@@ -1,8 +1,8 @@
 {
-  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.json",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.arthi-arumugam-git/caelo",
-  "description": "Free, local security scanner for AI-built apps. Finds exposed keys and open databases: Stripe/OpenAI/AWS/GitHub keys, browser-leaked secrets (NEXT_PUBLIC/VITE), Supabase service-role keys and RLS gaps, open Firebase rules, committed .env. Reads files only, uploads nothing, redacts every secret it prints.",
-  "version": "0.1.0",
+  "description": "Free local security scanner for AI-built apps. Finds exposed keys and open databases",
+  "version": "0.1.1",
   "websiteUrl": "https://caelo.sh",
   "repository": {
     "url": "https://github.com/arthi-arumugam-git/caelo",
@@ -13,7 +13,7 @@
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "caelo",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "transport": { "type": "stdio" },
       "packageArguments": [
         {
