@@ -60,6 +60,19 @@ Then ask: *"roast this project for security issues"*. The `roast_project` tool t
 
 On Windows, if your MCP client can't find `npx`, set `"command": "cmd"` and `"args": ["/c", "npx", "-y", "caelo", "--mcp"]`.
 
+**Continue.dev** uses YAML. Add to your `config.yaml`:
+
+```yaml
+mcpServers:
+  - name: caelo
+    command: npx
+    args: ["-y", "caelo", "--mcp"]
+```
+
+## Use it as a Claude Code skill
+
+Prefer plain English over config? There's a Claude Code skill in [`claude-code-skill/caelo`](claude-code-skill/caelo). Copy that folder into `~/.claude/skills/` and ask Claude Code to *"run a Caelo security scan"*; it runs the scan and explains the findings.
+
 ## Run it in CI
 
 Fail a pull request when a secret or an open database slips in:
