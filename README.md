@@ -1,5 +1,9 @@
 # Caelo
 
+[![npm version](https://img.shields.io/npm/v/caelo)](https://www.npmjs.com/package/caelo)
+[![license](https://img.shields.io/npm/l/caelo)](LICENSE)
+[![node](https://img.shields.io/node/v/caelo)](https://nodejs.org)
+
 **See straight to the bottom of your code.**
 
 Caelo is a free security **roast** for apps built with AI coding tools (Lovable, Bolt, Cursor, v0, Replit).
@@ -43,6 +47,17 @@ Code, Windsurf or any MCP client.
 ```
 
 Then ask: *"roast this project for security issues"*. The `roast_project` tool takes the repo path.
+
+On Windows, if your MCP client can't find `npx`, set `"command": "cmd"` and `"args": ["/c", "npx", "-y", "caelo", "--mcp"]`.
+
+## Run it in CI
+
+Fail a pull request when a secret or an open database slips in:
+
+```yaml
+# .github/workflows/security.yml
+- uses: arthi-arumugam-git/caelo-action@v1
+```
 
 ## What the free roast is, and isn't
 
