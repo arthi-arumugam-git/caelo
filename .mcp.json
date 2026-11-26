@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "caelo": {
+      "command": "npx",
+      "args": ["-y", "caelo", "--mcp"]
+    }
+  }
+}
