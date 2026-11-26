@@ -28,6 +28,29 @@ npx caelo .
 
 Point it at any project folder. Exit code is `1` if anything critical is found, else `0`.
 
+## Install it with a package manager
+
+Caelo runs fine with a one-off `npx caelo .`, but you can also install it for good:
+
+```bash
+# Homebrew (macOS / Linux)
+brew install arthi-arumugam-git/tap/caelo
+
+# Scoop (Windows)
+scoop bucket add caelo https://github.com/arthi-arumugam-git/scoop-caelo
+scoop install caelo
+
+# mise (no plugin needed)
+mise use -g npm:caelo
+
+# asdf
+asdf plugin add caelo https://github.com/arthi-arumugam-git/asdf-caelo
+asdf install caelo latest
+
+# npm, global
+npm install -g caelo
+```
+
 ## Use it inside your editor (MCP)
 
 Caelo is also an MCP server, so you can roast your repo without leaving Cursor, Claude
