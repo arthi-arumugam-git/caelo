@@ -43,6 +43,17 @@ Code, Windsurf or any MCP client.
 claude mcp add --transport stdio --scope user caelo -- npx -y caelo --mcp
 ```
 
+**Claude Code plugin** (bundles the scanner, a `/caelo:scan` command, and the skill in one install):
+
+```bash
+claude plugin marketplace add arthi-arumugam-git/caelo
+claude plugin install caelo@caelo
+```
+
+Then run `/caelo:scan` in any project, or just ask for a security check.
+
+**Claude Desktop** (one click, no terminal): download [`desktop-extension/caelo.mcpb`](desktop-extension/caelo.mcpb) and open it in Claude Desktop → Settings → Extensions. See [`desktop-extension/`](desktop-extension/).
+
 **Any MCP client** (add to your MCP config):
 
 ```json

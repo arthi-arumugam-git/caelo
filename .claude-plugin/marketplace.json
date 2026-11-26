@@ -1,0 +1,17 @@
+{
+  "name": "caelo",
+  "description": "Caelo: free, local security scanner for AI-built apps, by Irth Labs",
+  "owner": {
+    "name": "Irth Labs",
+    "url": "https://www.irthlabs.com"
+  },
+  "plugins": [
+    {
+      "name": "caelo",
+      "source": "./plugins/caelo",
+      "description": "Run a free, local Caelo security scan from Claude Code: an MCP scanner plus a /caelo:scan command. Finds exposed keys and open databases; reads files only, uploads nothing.",
+      "category": "security",
+      "tags": ["security", "scanner", "mcp", "secrets", "ai-apps"]
+    }
+  ]
+}
