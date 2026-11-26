@@ -1,0 +1,24 @@
+# Keep the build context small and the dependency install clean.
+node_modules
+npm-debug.log
+*.log
+
+# Version control and CI.
+.git
+.gitignore
+.github
+
+# Local tooling and editor state, not part of the CLI.
+.omx
+.mcp.json
+.cursorrules
+.pre-commit-hooks.yaml
+
+# Tests and extras that do not ship in the image.
+test
+claude-code-skill
+server.json
+
+# Docker files themselves.
+Dockerfile
+.dockerignore

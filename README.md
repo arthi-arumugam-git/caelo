@@ -73,6 +73,24 @@ mcpServers:
 
 Prefer plain English over config? There's a Claude Code skill in [`claude-code-skill/caelo`](claude-code-skill/caelo). Copy that folder into `~/.claude/skills/` and ask Claude Code to *"run a Caelo security scan"*; it runs the scan and explains the findings.
 
+## Run it with Docker
+
+Prefer a container? Caelo ships as a Docker image on the GitHub Container Registry.
+Mount the folder you want to scan at `/scan`:
+
+```bash
+docker run --rm -v "$PWD:/scan" ghcr.io/arthi-arumugam-git/caelo /scan
+```
+
+The container reads only the folder you mount and uploads nothing, just like the CLI.
+Exit code is `1` if anything critical is found, else `0`.
+
+Run the MCP server from the container instead:
+
+```bash
+docker run --rm -i -v "$PWD:/scan" ghcr.io/arthi-arumugam-git/caelo --mcp
+```
+
 ## Run it in CI
 
 Fail a pull request when a secret or an open database slips in:
