@@ -33,7 +33,17 @@ Point it at any project folder. Exit code is `1` if anything critical is found, 
 Caelo is also an MCP server, so you can roast your repo without leaving Cursor, Claude
 Code, Windsurf or any MCP client.
 
-**Claude Code / Cursor**: add to your MCP config:
+**Cursor** (one click):
+
+[![Add to Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](cursor://anysphere.cursor-deeplink/mcp/install?name=caelo&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsImNhZWxvIiwiLS1tY3AiXX0=)
+
+**Claude Code** (one line):
+
+```bash
+claude mcp add --transport stdio --scope user caelo -- npx -y caelo --mcp
+```
+
+**Any MCP client** (add to your MCP config):
 
 ```json
 {
@@ -58,6 +68,28 @@ Fail a pull request when a secret or an open database slips in:
 # .github/workflows/security.yml
 - uses: arthi-arumugam-git/caelo-action@v1
 ```
+
+## Use it as a pre-commit hook
+
+Catch leaks before they are ever committed. Add to `.pre-commit-config.yaml`:
+
+```yaml
+repos:
+  - repo: https://github.com/arthi-arumugam-git/caelo
+    rev: v0.1.1
+    hooks:
+      - id: caelo
+```
+
+## Show it off
+
+Scanned clean? Add the badge to your README:
+
+```md
+[![Scanned with Caelo](https://img.shields.io/badge/scanned%20with-Caelo-c8e630?labelColor=111111)](https://caelo.sh)
+```
+
+[![Scanned with Caelo](https://img.shields.io/badge/scanned%20with-Caelo-c8e630?labelColor=111111)](https://caelo.sh)
 
 ## What the free roast is, and isn't
 

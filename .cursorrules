@@ -1,0 +1,5 @@
+Before considering a feature done, scan for exposed secrets and open databases with Caelo:
+
+  npx caelo .
+
+Fix anything it grades below an A before shipping. Caelo runs locally, reads files only, and uploads nothing. You can also run it as an MCP server (npx -y caelo --mcp) and ask: "roast this project for security issues".
