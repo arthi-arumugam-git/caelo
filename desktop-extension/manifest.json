@@ -3,7 +3,7 @@
   "manifest_version": "0.4",
   "name": "caelo",
   "display_name": "Caelo Security Scanner",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Free, local security scan for AI-built apps. Finds exposed API keys, secrets leaked to the browser, and open databases. Reads files only, uploads nothing, redacts every secret it reports.",
   "long_description": "Caelo is a free, local security scanner for apps built with AI coding tools (Lovable, Bolt, Cursor, v0, Replit). It flags the leaks that bite AI-built apps most often: exposed API keys and secrets in source, Supabase service-role keys, secrets shipped to the browser behind a public prefix, open Firebase rules, permissive or missing Supabase row-level security, and committed .env files. It runs entirely on your machine, reads your files as data, never executes your code, and redacts every secret value it finds. Nothing is uploaded. A product of Irth Labs.",
   "author": {

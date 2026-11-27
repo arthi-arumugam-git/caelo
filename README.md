@@ -233,7 +233,7 @@ Add to `.pre-commit-config.yaml`:
 ```yaml
 repos:
   - repo: https://github.com/arthi-arumugam-git/caelo
-    rev: v0.1.2
+    rev: v0.1.3
     hooks:
       - id: caelo
 ```

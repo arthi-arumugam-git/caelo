@@ -3,7 +3,7 @@
   "name": "io.github.arthi-arumugam-git/caelo",
   "title": "Caelo",
   "description": "Security scanner for AI-built apps, not a CMS. Finds exposed keys and open databases. Free, MIT.",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "websiteUrl": "https://caelo.sh",
   "repository": {
     "url": "https://github.com/arthi-arumugam-git/caelo",
@@ -14,7 +14,7 @@
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "caelo",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "transport": {
         "type": "stdio"
       },
