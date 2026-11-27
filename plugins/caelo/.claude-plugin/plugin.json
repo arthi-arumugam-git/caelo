@@ -1,6 +1,6 @@
 {
   "name": "caelo",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Caelo security scanner: a local MCP server plus a /caelo:scan command. Finds exposed API keys, secrets leaked to the browser, and open databases in AI-built apps. Reads files only, uploads nothing.",
   "author": {
     "name": "Irth Labs",
