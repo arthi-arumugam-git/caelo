@@ -1,0 +1,81 @@
+name: ci
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (node ${{ matrix.node }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        node: [18, 20, 22, 24]
+        include:
+          - os: windows-latest
+            node: 22
+          - os: macos-latest
+            node: 22
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm test
+
+  package:
+    name: package, advisories, self-scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Dependency advisories
+        run: npm audit --audit-level=moderate
+      - name: The tarball ships only bin, lib, README, LICENSE and package.json
+        run: |
+          npm pack --dry-run --json > pack.json
+          node -e "
+            const files = JSON.parse(require('fs').readFileSync('pack.json', 'utf8'))[0].files.map((f) => f.path);
+            const bad = files.filter((p) => !/^(bin\/|lib\/|README\.md$|LICENSE$|package\.json$)/.test(p));
+            if (bad.length) { console.error('unexpected files in the package:', bad); process.exit(1); }
+            console.log(files.length + ' files, all expected');
+          "
+      - name: Caelo scans Caelo (exit 1 on a critical finding)
+        run: node bin/caelo.js .
+      - name: Versions agree (package.json, server.json, plugin, desktop extension)
+        run: |
+          node -e "
+            const fs = require('fs');
+            const read = (p) => JSON.parse(fs.readFileSync(p, 'utf8'));
+            const v = read('package.json').version;
+            const others = {
+              'server.json': read('server.json').version,
+              'server.json packages[0]': read('server.json').packages[0].version,
+              'plugins/caelo/.claude-plugin/plugin.json': read('plugins/caelo/.claude-plugin/plugin.json').version,
+              'desktop-extension/manifest.json': read('desktop-extension/manifest.json').version,
+            };
+            const bad = Object.entries(others).filter(([, x]) => x !== v);
+            if (bad.length) { console.error('version mismatch with package.json ' + v + ':', bad); process.exit(1); }
+            console.log('all at ' + v);
+          "
