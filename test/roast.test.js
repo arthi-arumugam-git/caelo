@@ -378,6 +378,70 @@ test("gitignore name matching follows last-match-wins", () => {
   assert.ok(!gitignoreCovers("node_modules\ndist/\n", ".env"));
 });
 
+test("gitignore rules with a path: anchored, nested, wildcard and directory-only lines", () => {
+  // [ignore file, path relative to it, is the path a directory, expected]. Checked against `git check-ignore`.
+  const cases = [
+    ["config/.env", "config/.env", false, true], ["config/.env", "other/config/.env", false, null],
+    ["/.env", ".env", false, true], ["/.env", "apps/web/.env", false, null],
+    ["apps/*/.env.local", "apps/web/.env.local", false, true], ["apps/*/.env.local", "apps/web/x/.env.local", false, null],
+    ["**/.env", "a/b/.env", false, true], ["a/**/.env", "a/.env", false, true], ["a/**/.env", "a/b/c/.env", false, true],
+    ["a/**/.env", "b/a/.env", false, null], ["*.env", "a/b.env", false, true], [".env*", "apps/web/.env.local", false, true],
+    ["secrets/", "secrets", true, true], ["secrets/", "secrets", false, null], ["secrets", "x/secrets", true, true],
+    ["tmp/**", "tmp", true, true], ["/build", "src/build", true, null], ["a**b", "axxb", false, true],
+    [".env\n!config/.env", "config/.env", false, false], ["!/.env\n.env", ".env", false, true],
+  ];
+  for (const [text, rel, isDir, want] of cases) assert.equal(gitignoreVerdict(text, rel, isDir), want, `${JSON.stringify(text)} vs ${rel}`);
+});
+
+test("env file under a git-ignored folder, or matched by a path rule, is a local file, not a finding", () => {
+  const key = `STRIPE_SECRET_KEY=${FAKE_STRIPE}\n`;
+  const r = scanDir(fixture({ ".gitignore": "secrets/\nconfig/.env\napps/*/.env.local\n", "secrets/deep/.env": key, "config/.env": key, "apps/web/.env.local": key }));
+  assert.deepEqual(ids(r), [], "git ignores all three, so none is about to be committed");
+  assert.match(r.notes[0], /^3 git-ignored env files/);
+
+  // A rule anchored to the root covers the root file only; before, `/.env` also hid apps/web/.env.
+  const anchored = scanDir(fixture({ ".gitignore": "/.env\n", ".env": key, "apps/web/.env": key }));
+  assert.deepEqual(anchored.findings.map((f) => `${f.ruleId} ${f.file}`), ["secrets.stripe-secret apps/web/.env", "env.not-ignored apps/web/.env"]);
+
+  // Git cannot re-include a file whose folder is ignored, so the inner `!.env` changes nothing.
+  const inner = scanDir(fixture({ ".gitignore": "private/\n", "private/.gitignore": "!.env\n", "private/.env": key }));
+  assert.deepEqual(ids(inner), []);
+});
+
+test("env file checks agree with git itself on ignored folders and path rules", (t) => {
+  const git = (dir, ...args) => execFileSync("git", ["-C", dir, ...args], { stdio: "ignore" });
+  const key = `STRIPE_SECRET_KEY=${FAKE_STRIPE}\n`;
+  const dir = fixture({ ".gitignore": "secrets/\nconfig/.env\n", "secrets/.env": key, "config/.env": key, "open/.env": key, "a.js": "1\n" });
+  try {
+    git(dir, "init", "-q");
+    git(dir, "add", ".gitignore", "a.js");
+  } catch {
+    t.skip("git is not available");
+    return;
+  }
+  const ignoredByGit = (rel) => spawnSync("git", ["-C", dir, "check-ignore", "-q", rel]).status === 0;
+  assert.deepEqual(["secrets/.env", "config/.env", "open/.env"].map(ignoredByGit), [true, true, false]);
+  const r = scanDir(dir);
+  assert.deepEqual(byRule(r, "env.not-ignored").map((f) => [f.file, f.confidence]), [["open/.env", "confirmed"]]);
+  assert.deepEqual(byRule(r, "secrets.stripe-secret").map((f) => f.file), ["open/.env"]);
+});
+
+test("a .git file that points at a missing folder gives no git facts", () => {
+  const r = scanDir(fixture({ ".git": "gitdir: ../no-such-worktree\n", ".env": `STRIPE_SECRET_KEY=${FAKE_STRIPE}\n` }));
+  const env = byRule(r, "env.not-ignored")[0];
+  assert.equal(env.confidence, "needs_review", "without an index Caelo cannot say that git does not track the file");
+  assert.match(env.why, /no git metadata/);
+});
+
+test("hostile .gitignore: a huge ignore file and many env files cannot stall the scan", () => {
+  const files = { ".gitignore": "*.log\n".repeat(150_000) };
+  for (let i = 0; i < 40; i++) files[`e${i}/.env`] = "APP_NAME=demo\n";
+  const r = within(4000, () => scanDir(fixture(files)));
+  assert.equal(byRule(r, "env.not-ignored").length, 40, "when Caelo stops reading ignore rules it reports the file rather than assume it is ignored");
+  const huge = scanDir(fixture({ ".gitignore": ".env\n" + "#".repeat(1_100_000) + "\n", ".env": "APP_NAME=demo\n" }));
+  assert.equal(byRule(huge, "env.not-ignored").length, 1, "an ignore file over 1 MB is not read");
+});
+
 // ---- walker --------------------------------------------------------------------------------------
 
 test("skips node_modules, build output, .git, lockfiles, binaries and oversized files", () => {
