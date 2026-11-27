@@ -46,6 +46,14 @@
     "cli"
   ],
   "homepage": "https://caelo.sh",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arthi-arumugam-git/caelo.git"
+  },
+  "bugs": {
+    "url": "https://github.com/arthi-arumugam-git/caelo/issues"
+  },
+  "author": "Irth Labs <arthi@irthlabs.com> (https://www.irthlabs.com)",
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.21.0"
