@@ -667,6 +667,26 @@ test("a file with tens of thousands of findings is scanned in linear time, with 
   assert.equal(within(3000, () => scanContent("a.js", "\r\n" + names.join("\r\n"))).at(-1).line, 30_001);
 });
 
+test("one file with more findings than a function call can take arguments is still scanned", () => {
+  // 149,000 open rules on one line (1.49 MB): the findings used to be spread into one push() call,
+  // which threw "Maximum call stack size exceeded" and ended the scan with exit code 2.
+  const r = scanDir(fixture({ "firestore.rules": `${ALLOW} get;`.repeat(149_000) }));
+  assert.deepEqual(r.findings.map((f) => [f.ruleId, f.line, f.value]), [["firebase.open-rule", 1, `${ALLOW} get`]]);
+});
+
+test("memory does not grow with the number of files: a file's text is dropped after its own scan", () => {
+  // 160 files of about 600 KB (96 MB of text) scanned by a process allowed 48 MB of heap.
+  const body = "export const row = 'plain text, nothing secret in here';\n".repeat(10_500);
+  const files = { "supabase/migrations/1.sql": "create table public.t (id int);\n", ".env": "APP_NAME=demo\n", ".gitignore": ".env\n" };
+  for (let i = 0; i < 160; i++) files[`data/rows${i}.js`] = body;
+  const run = spawnSync(process.execPath, ["--max-old-space-size=48", BIN, fixture(files), "--json"], { encoding: "utf8" });
+  assert.equal(run.status, 0, `the scan ran out of memory or failed: ${run.stderr.slice(0, 200)}`);
+  const out = JSON.parse(run.stdout);
+  assert.equal(out.examined, 163);
+  assert.deepEqual(out.findings.map((f) => f.ruleId), ["supabase.rls-not-enabled"], "project-level checks still see the SQL and env files");
+  assert.equal(out.notes.length, 1, "the ignored env file is still noted");
+});
+
 test("a real-shaped service-role JWT is still reported after the pattern was bounded", () => {
   const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
   const jwt = `${b64({ alg: "HS256", typ: "JWT" })}.${b64({ iss: "supabase", ref: "abcdefghijklmnopqrst", role: "service_role", iat: 1700000000, exp: 2000000000 })}.${"s".repeat(43)}`;

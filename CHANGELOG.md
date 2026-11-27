@@ -13,6 +13,11 @@ stall Caelo or write its own text into the report. Upgrade if you run Caelo on c
   a `.sql` file of unclosed `/*` comments, a policy with a very long `to` role list, a Firebase rules
   file with thousands of `allow` lines, and any file with tens of thousands of findings (line numbers
   were counted from the top of the file for each one). All four are now linear.
+- One file with about 125,000 findings ended the scan with `internal error: Maximum call stack size
+  exceeded` (exit code 2) and no report. It is now scanned like any other file.
+- Memory: Caelo kept the text of every file until the end of the scan (about 1 GB for 700 files of
+  1.4 MB). It now keeps only env and SQL files, which the project-level checks need, so memory follows
+  the largest file instead of the size of the folder.
 - File paths, matched lines and the `ref` inside a Supabase JWT were printed as they were, so a crafted
   repository could add lines such as "No findings" to the report or send escape codes to the terminal.
   Control, bidirectional and zero-width characters are now shown as visible escapes in every output mode.
