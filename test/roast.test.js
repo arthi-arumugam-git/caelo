@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { scanDir, score, grade } from "../lib/scan.js";
-import { redact, classifyPublicVar, looksPlaceholder, scanContent, clean } from "../lib/rules.js";
+import { redact, classifyPublicVar, looksPlaceholder, scanContent, scanProject, clean } from "../lib/rules.js";
 import { formatReport, toJson } from "../lib/report.js";
 import { roast as mcpRoast } from "../lib/mcp.js";
 import { homedir } from "node:os";
@@ -619,6 +619,52 @@ test("hostile file content: token-shaped runs cannot stall the scan", () => {
   for (const body of ["eyJ".repeat(500_000), "eyJ" + "a".repeat(1_400_000), ("eyJ" + "a".repeat(20) + ".").repeat(60_000), "sk_live_".repeat(180_000)]) {
     within(3000, () => scanContent("a.txt", body));
   }
+});
+
+test("hostile SQL: unclosed comments and endless role lists cannot stall the scan", () => {
+  const sql = (text) => scanProject([{ relPath: "supabase/migrations/1.sql", text }], { supabase: true }).findings;
+  within(3000, () => sql("/* ".repeat(450_000)));
+  within(3000, () => sql("create policy p on t " + "to a ".repeat(250_000) + "! using (true);"));
+  within(3000, () => sql("create policy p on t to a" + " ".repeat(1_300_000) + "! using (true);"));
+  // 12,000 tables, each with an open policy, each dropped again: nothing is left to report.
+  const many = Array.from({ length: 12_000 }, (_, i) => `create table t${i} (id int); create policy p on t${i} using (true);`);
+  const drops = Array.from({ length: 12_000 }, (_, i) => `drop table t${i};`);
+  assert.deepEqual(within(3000, () => sql(many.concat(drops).join("\n"))), []);
+});
+
+test("SQL comments are blanked without moving line numbers; an unclosed comment is left as text", () => {
+  const sql = (text) => scanProject([{ relPath: "supabase/migrations/1.sql", text }], { supabase: true }).findings;
+  const commented = sql("/* create table a (id int);\n*/\n-- create table b (id int);\ncreate table c (id int); /* x */ create table d (id int);\n");
+  assert.deepEqual(commented.map((f) => [f.line, f.value]), [[4, "no `enable row level security` for: c, d"]]);
+  assert.deepEqual(sql("create table c (id int);\n/* never closed\ncreate table e (id int);\n").map((f) => f.value), ["no `enable row level security` for: c, e"]);
+});
+
+test("RLS policies: the role list comes from the `to` clause, wherever the statement ends", () => {
+  const roles = (stmt) => scanProject([{ relPath: "supabase/migrations/1.sql", text: stmt }], {}).findings.map((f) => f.value);
+  assert.deepEqual(roles("create policy p on t for all to anon, authenticated using (true);"), ["t: for all to anon,authenticated, condition is (true)"]);
+  assert.deepEqual(roles('create policy p on t for update\n  to "authenticated"\n  with check (true);'), ["t: for update to authenticated, condition is (true)"]);
+  assert.deepEqual(roles("create policy p on t for all using (true);"), ["t: for all to public, condition is (true)"]);
+  assert.deepEqual(roles("create policy p on t using (true) to authenticated  ;"), ["t: for all to authenticated, condition is (true)"]);
+  assert.deepEqual(roles("create policy p on t to authenticated using (true);\nalter policy p on t using (true);"), ["t: for all to authenticated, condition is (true)"]);
+  assert.deepEqual(roles("create policy p on t to service_role using (true);"), [], "service_role bypasses RLS anyway");
+  assert.deepEqual(roles("create policy p on t to a! using (true);"), ["t: for all to public, condition is (true)"], "a role list Caelo cannot read falls back to public");
+});
+
+test("hostile rules file: thousands of open rules under one match block cannot stall the scan", () => {
+  const body = "service cloud.firestore {\n match /{document=**} {\n" + `  ${ALLOW} read;\n`.repeat(100_000) + " }\n}\n";
+  const found = within(3000, () => scanContent("firestore.rules", body));
+  assert.equal(found.length, 100_000);
+  assert.deepEqual([found[0].line, found[0].severity, found.at(-1).line, found.at(-1).severity], [3, "high", 100_002, "high"]);
+});
+
+test("a file with tens of thousands of findings is scanned in linear time, with the right line numbers", () => {
+  const lines = Array.from({ length: 30_000 }, (_, i) => j("sk_live_", "FAKEprobe", String(i).padStart(7, "0"), "notREALabcdEFGH"));
+  const found = within(3000, () => scanContent("keys.txt", lines.join("\n")));
+  assert.equal(found.length, 30_000);
+  assert.deepEqual([found[0].line, found[14_999].line, found.at(-1).line], [1, 15_000, 30_000]);
+  const names = Array.from({ length: 30_000 }, (_, i) => `${V}S${i}_SECRET`);
+  assert.equal(within(3000, () => scanContent("a.js", names.join(" "))).at(-1).line, 1);
+  assert.equal(within(3000, () => scanContent("a.js", "\r\n" + names.join("\r\n"))).at(-1).line, 30_001);
 });
 
 test("a real-shaped service-role JWT is still reported after the pattern was bounded", () => {

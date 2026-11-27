@@ -9,6 +9,10 @@ stall Caelo or write its own text into the report. Upgrade if you run Caelo on c
 - A `.gitignore` line with many `*` could make the scan hang (exponential regex backtracking). Ignore
   lines are now matched with a linear glob matcher.
 - A file of repeated `eyJ` made the JWT check quadratic (20 s at 160 KB). The pattern is now linear.
+- Four more inputs took minutes or did not finish, each from a single file under the 1.5 MB size limit:
+  a `.sql` file of unclosed `/*` comments, a policy with a very long `to` role list, a Firebase rules
+  file with thousands of `allow` lines, and any file with tens of thousands of findings (line numbers
+  were counted from the top of the file for each one). All four are now linear.
 - File paths, matched lines and the `ref` inside a Supabase JWT were printed as they were, so a crafted
   repository could add lines such as "No findings" to the report or send escape codes to the terminal.
   Control, bidirectional and zero-width characters are now shown as visible escapes in every output mode.
