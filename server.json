@@ -1,8 +1,9 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.arthi-arumugam-git/caelo",
-  "description": "Free local security scanner for AI-built apps. Finds exposed keys and open databases",
-  "version": "0.1.1",
+  "title": "Caelo",
+  "description": "Security scanner for AI-built apps, not a CMS. Finds exposed keys and open databases. Free, MIT.",
+  "version": "0.1.2",
   "websiteUrl": "https://caelo.sh",
   "repository": {
     "url": "https://github.com/arthi-arumugam-git/caelo",
@@ -13,8 +14,10 @@
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "caelo",
-      "version": "0.1.1",
-      "transport": { "type": "stdio" },
+      "version": "0.1.2",
+      "transport": {
+        "type": "stdio"
+      },
       "packageArguments": [
         {
           "type": "named",

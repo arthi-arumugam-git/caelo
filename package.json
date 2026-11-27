@@ -1,6 +1,6 @@
 {
   "name": "caelo",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "mcpName": "io.github.arthi-arumugam-git/caelo",
   "description": "Caelo: see straight to the bottom of your code. Free security roast for AI-built apps (Lovable, Bolt, Cursor, v0, Replit): exposed keys, browser-leaked secrets, Supabase RLS, open Firebase rules, committed .env. Runs locally, reads files only, redacts secrets. CLI + MCP server.",
   "type": "module",
@@ -17,6 +17,7 @@
     "node": ">=18"
   },
   "scripts": {
+    "test": "node --test",
     "roast": "node bin/caelo.js",
     "mcp": "node bin/caelo.js --mcp"
   },

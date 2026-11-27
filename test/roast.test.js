@@ -1,20 +1,47 @@
-// Self-contained tests. Each "should flag" has a "should not flag" twin so a rule can't pass by
-// flagging everything. Run with: node --test
+// Self-contained tests. Most "should flag" cases have a "should not flag" twin, so a rule cannot
+// pass by flagging everything. Run with: npm test  (or: node --test)
+//
+// Every key-shaped value below is synthetic and assembled at runtime from pieces. That keeps
+// secret-scanning push protection quiet, and it means Caelo scanning its own repo finds nothing
+// (there is a test for that at the bottom).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { scanDir, score } from "../lib/scan.js";
-import { redact } from "../lib/rules.js";
+import { fileURLToPath } from "node:url";
+import { scanDir, score, grade } from "../lib/scan.js";
+import { redact, classifyPublicVar, looksPlaceholder } from "../lib/rules.js";
+import { formatReport, toJson } from "../lib/report.js";
+import { parseIndex, gitignoreCovers } from "../lib/git.js";
+import { demoApp } from "./demo-app.js";
 
-// Synthetic Stripe-shaped test key, assembled at runtime and split across two string
-// literals so secret-scanning push protection (GitHub, etc.) does not flag the test file.
-// The runtime value is unchanged, so the scanner still sees a real-looking sk_live_ key.
-const FAKE_STRIPE = "sk_live_" + "51H8xWpackedFAKEkey1234567890abcdEF";
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const BIN = path.join(ROOT, "bin", "caelo.js");
+const PKG = JSON.parse(readFileSync(path.join(ROOT, "package.json"), "utf8"));
 
-function fixture(files) {
-  const dir = mkdtempSync(path.join(tmpdir(), "roast-"));
+const j = (...parts) => parts.join("");
+const FAKE_STRIPE = j("sk_live_", "51H8xWpackedFAKEkey1234567890abcdEF");
+const FAKE_SB_SECRET = j("sb_secret_", "9aZ2bQ7xK1mN4pR8sT6uV3wY5cD0eF1gH");
+const FAKE_SB_PUBLISHABLE = j("sb_publishable_", "safe1234567890abcdefghij");
+const FAKE_OPENAI_PROJECT = j("sk-proj-", "Ab3_dE5-gH7jK9mN1pQ3", "sT5vW7yZ9bC1dF3_hJ5-kM7nP9");
+const FAKE_GOOGLE = j("AIza", "SyD3f4k3K3yF0rT3st1ngPurp0ses0nly9z");
+const FAKE_PEM = j("-----BEGIN PRIVATE", " KEY-----\n", "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7VJTUt9Us8cKj\n");
+const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
+const V = "VITE_";
+const NP = "NEXT_PUBLIC_";
+const ALLOW = "allow";
+const jwt = (payload) => j(b64({ alg: "HS256", typ: "JWT" }), ".", b64(payload), ".", "c2lnbmF0dXJlX3BsYWNlaG9sZGVy");
+
+// Fixtures live in the temp folder. Stop repo discovery there (the same variable git honors), so a
+// stray .git in a parent folder, such as a home directory, cannot change what these tests see.
+process.env.GIT_CEILING_DIRECTORIES = tmpdir();
+
+const made = [];
+function fixture(files, name = "roast-") {
+  const dir = mkdtempSync(path.join(tmpdir(), name));
+  made.push(dir);
   for (const [rel, content] of Object.entries(files)) {
     const full = path.join(dir, rel);
     mkdirSync(path.dirname(full), { recursive: true });
@@ -22,63 +49,538 @@ function fixture(files) {
   }
   return dir;
 }
+test.after(() => {
+  for (const d of made) rmSync(d, { recursive: true, force: true });
+});
+
+const ids = (r) => r.findings.map((f) => f.ruleId);
+const byRule = (r, id) => r.findings.filter((f) => f.ruleId === id);
+const cli = (args, opts = {}) => spawnSync(process.execPath, [BIN, ...args], { encoding: "utf8", ...opts });
+
+// ---- secrets -------------------------------------------------------------------------------------
 
 test("redact never returns the raw secret", () => {
-  const secret = FAKE_STRIPE;
-  const masked = redact(secret);
+  const masked = redact(FAKE_STRIPE);
   assert.ok(!masked.includes("packedFAKEkey"), "mask must not contain the middle of the secret");
   assert.match(masked, /chars\)$/);
 });
 
-test("flags a Stripe live key and a committed .env", () => {
-  const dir = fixture({
-    "src/pay.js": `const k = "${FAKE_STRIPE}";\n`,
-    ".env": `STRIPE_SECRET_KEY=${FAKE_STRIPE}\n`,
-    ".gitignore": "node_modules\n",
-  });
-  try {
-    const r = scanDir(dir);
-    const ids = r.findings.map((f) => f.ruleId);
-    assert.ok(ids.includes("secrets.stripe-secret"), "should flag the Stripe key");
-    assert.ok(ids.includes("env.committed"), "should flag the committed .env");
-    assert.ok(score(r.findings) < 100, "score should drop below 100");
-    for (const f of r.findings) {
-      assert.ok(!/packedFAKEkey/.test(JSON.stringify(f)), "no finding may contain a raw secret");
-    }
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
+test("flags a Stripe live key in source, redacted", () => {
+  const r = scanDir(fixture({ "src/pay.js": `const k = "${FAKE_STRIPE}";\n` }));
+  assert.deepEqual(ids(r), ["secrets.stripe-secret"]);
+  assert.equal(r.findings[0].file, "src/pay.js");
+  assert.equal(r.findings[0].line, 1);
+  assert.ok(score(r.findings) < 100);
+  assert.ok(!JSON.stringify(r).includes("packedFAKEkey"), "no finding may contain a raw secret");
+});
+
+test("does NOT flag a clean project (anon key, example env, public-by-design names)", () => {
+  const r = scanDir(
+    fixture({
+      "src/supabase.js": `export const key = "${jwt({ role: "anon", ref: "abc" })}";\n`,
+      "src/client.ts":
+        "const a = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;\nconst b = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;\n" +
+        "const c = import.meta.env.VITE_FIREBASE_API_KEY;\nconst d = import.meta.env.VITE_POSTHOG_KEY;\n" +
+        "const e = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;\nconst f = import.meta.env.VITE_VAPID_PUBLIC_KEY;\n",
+      ".env.example": "STRIPE_SECRET_KEY=your-key-here\n",
+      ".gitignore": ".env*\n!.env.example\nnode_modules\n",
+    }),
+  );
+  assert.equal(r.findings.length, 0, `clean project should have no findings, got: ${ids(r)}`);
+  assert.equal(score(r.findings), 100);
+});
+
+test("flags a Supabase service-role JWT, not an anon JWT, not the local demo key", () => {
+  const r = scanDir(
+    fixture({
+      "src/admin.js": `const k = "${jwt({ role: "service_role", ref: "abc" })}";\n`,
+      "src/anon.js": `const k = "${jwt({ role: "anon", ref: "abc" })}";\n`,
+      "supabase/local.md": `service key for supabase start: ${jwt({ iss: "supabase-demo", role: "service_role", exp: 1983812996 })}\n`,
+    }),
+  );
+  const hits = byRule(r, "secrets.supabase-service-role");
+  assert.equal(hits.length, 1);
+  assert.equal(hits[0].file, "src/admin.js");
+});
+
+test("flags a Supabase sb_secret_ key but not the publishable key", () => {
+  const r = scanDir(fixture({ "src/server.js": `const s = "${FAKE_SB_SECRET}";\nconst p = "${FAKE_SB_PUBLISHABLE}";\n` }));
+  assert.deepEqual(ids(r), ["secrets.supabase-secret"]);
+  assert.equal(r.findings[0].severity, "critical");
+  assert.ok(!JSON.stringify(r.findings).includes("sb_publishable_"), "must not flag the publishable (public) key");
+  assert.ok(!JSON.stringify(r.findings).includes("9aZ2bQ7xK1mN"), "no finding may contain the raw secret");
+});
+
+test("flags an OpenAI project key (which contains - and _), not a lookalike word", () => {
+  const r = scanDir(
+    fixture({
+      "a.js": `const k = "${FAKE_OPENAI_PROJECT}";\n`,
+      "b.js": `const id = "task-${"a1B2c3D4e5".repeat(5)}";\n`,
+    }),
+  );
+  assert.deepEqual(ids(r), ["secrets.openai"]);
+  assert.equal(r.findings[0].file, "a.js");
+});
+
+test("does NOT flag documentation placeholders or code that only strips a PEM header", () => {
+  assert.ok(looksPlaceholder(j("sk_live_", "x".repeat(24))));
+  assert.ok(!looksPlaceholder(FAKE_STRIPE));
+  const r = scanDir(
+    fixture({
+      "docs/setup.md": [
+        `STRIPE=${j("sk_live_", "x".repeat(24))}`,
+        `SUPABASE=${j("sb_secret_", "your_secret_key_goes_here")}`,
+        `AWS=${j("AKIA", "IOSFODNN7", "EXAMPLE")}`,
+        `KEY="${j("-----BEGIN PRIVATE", " KEY-----")}\\n...\\n-----END PRIVATE KEY-----\\n"`,
+      ].join("\n"),
+      "src/pem.ts": `const body = pem.replace(/${j("-----BEGIN PRIVATE", " KEY-----")}/, "").replace(/\\s+/g, "");\n`,
+    }),
+  );
+  assert.equal(r.findings.length, 0, `placeholders must not be flagged, got: ${ids(r)}`);
+});
+
+test("flags a private key block that has key material", () => {
+  const r = scanDir(fixture({ "deploy/key.pem": FAKE_PEM }));
+  assert.deepEqual(ids(r), ["secrets.private-key"]);
+  assert.equal(r.findings[0].value, "(private key material)");
+});
+
+test("a Google key inside Firebase web config is low and needs review; elsewhere it is high", () => {
+  const r = scanDir(
+    fixture({
+      "src/firebase.ts": `export const cfg = { apiKey: "${FAKE_GOOGLE}", authDomain: "x.firebaseapp.com" };\n`,
+      "src/gemini.ts": `const key = "${FAKE_GOOGLE}";\n`,
+    }),
+  );
+  const hits = byRule(r, "secrets.google-api");
+  assert.equal(hits.find((f) => f.file === "src/firebase.ts").severity, "low");
+  assert.equal(hits.find((f) => f.file === "src/firebase.ts").confidence, "needs_review");
+  assert.equal(hits.find((f) => f.file === "src/gemini.ts").severity, "high");
+});
+
+// ---- browser-public names ------------------------------------------------------------------------
+
+test("classifies browser-public variable names", () => {
+  assert.equal(classifyPublicVar(`${NP}STRIPE_SECRET_KEY`), "secret");
+  assert.equal(classifyPublicVar(`${V}SUPABASE_SERVICE_ROLE_KEY`), "secret");
+  assert.equal(classifyPublicVar(`${V}ADMIN_PASSWORD`), "secret");
+  assert.equal(classifyPublicVar(`${V}OPENAI_API_KEY`), "server-only");
+  assert.equal(classifyPublicVar(`${V}STRIPE_KEY`), "unclear");
+  for (const fine of [
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+    "VITE_SUPABASE_PUBLISHABLE_KEY",
+    "VITE_FIREBASE_API_KEY",
+    "VITE_GOOGLE_MAPS_API_KEY",
+    "VITE_PASSWORD_MIN_LENGTH",
+    "PUBLIC_CALENDAR_VIEW_STORAGE_KEY",
+    "NEXT_PUBLIC_APP_URL",
+  ]) {
+    assert.equal(classifyPublicVar(fine), null, `${fine} is not a secret`);
   }
 });
 
-test("does NOT flag a clean project (anon key, example env, gitignored)", () => {
-  const dir = fixture({
-    // supabase anon key (role=anon) is public and fine; must not be flagged as service_role
-    "src/supabase.js":
-      'export const key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsInJlZiI6ImFiYyJ9.sig";\n',
-    ".env.example": "STRIPE_SECRET_KEY=your-key-here\n",
-    ".gitignore": ".env*\n!.env.example\nnode_modules\n",
-  });
-  try {
-    const r = scanDir(dir);
-    assert.equal(r.findings.length, 0, `clean project should have no findings, got: ${r.findings.map((f) => f.ruleId)}`);
-    assert.equal(score(r.findings), 100);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
+test("a browser-exposed secret name is one finding per name, however many files use it", () => {
+  const r = scanDir(
+    fixture({
+      "src/a.ts": `const k = import.meta.env.${V}OPENAI_API_KEY;\n`,
+      "src/b.ts": `const k = import.meta.env.${V}OPENAI_API_KEY;\n`,
+      "src/c.ts": `const k = import.meta.env.${V}OPENAI_API_KEY;\nconst s = process.env.${NP}STRIPE_SECRET_KEY;\n`,
+      "docs/notes.md": `Never create ${V}ANTHROPIC_API_KEY. It would ship to the browser.\n`,
+    }),
+  );
+  const hits = byRule(r, "browser.public-secret-name");
+  assert.equal(hits.length, 2, "a name that only appears in documentation is not flagged");
+  const openai = hits.find((f) => f.value === `${V}OPENAI_API_KEY`);
+  assert.equal(openai.file, "src/a.ts");
+  assert.equal(openai.occurrences, 3);
+  assert.equal(openai.severity, "high");
 });
 
-test("flags a Supabase service-role JWT but not an anon JWT", () => {
-  // {"role":"service_role","ref":"abc"} base64url payload
-  const serviceRole =
-    "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwicmVmIjoiYWJjIn0.c2lnbmF0dXJlX3BsYWNlaG9sZGVy";
-  const dir = fixture({ "src/admin.js": `const k = "${serviceRole}";\n` });
+// ---- Firebase ------------------------------------------------------------------------------------
+
+test("Firebase rules: open write is critical; conditioned, commented and scoped rules are not flagged", () => {
+  const rules = (body) => `rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n${body}\n  }\n}\n`;
+  const open = scanDir(fixture({ "firestore.rules": rules(`    match /{document=**} {\n      ${ALLOW} read, write: if true;\n    }`) }));
+  assert.deepEqual(ids(open), ["firebase.open-rule"]);
+  assert.equal(open.findings[0].severity, "critical");
+  assert.equal(open.findings[0].line, 5);
+
+  const bare = scanDir(fixture({ "firestore.rules": rules(`    match /posts/{id} {\n      ${ALLOW} create, update;\n    }`) }));
+  assert.equal(bare.findings[0]?.severity, "critical", "a bare allow with no condition is open too");
+
+  const readOnly = scanDir(fixture({ "firestore.rules": rules(`    match /posts/{id} {\n      ${ALLOW} read: if true;\n    }`) }));
+  assert.equal(readOnly.findings[0].severity, "medium", "public read of one collection is a review item, not critical");
+  assert.equal(readOnly.findings[0].confidence, "needs_review");
+
+  const safe = scanDir(
+    fixture({
+      "firestore.rules": rules(
+        `    match /users/{uid} {\n      // ${ALLOW} read, write: if true;\n      ${ALLOW} read, write: if request.auth != null && request.auth.uid == uid;\n      ${ALLOW} list: if true && request.auth != null;\n    }`,
+      ),
+    }),
+  );
+  assert.equal(safe.findings.length, 0, `scoped rules must not be flagged, got: ${ids(safe)}`);
+});
+
+test("Realtime Database rules: .write true is critical, an auth condition is not flagged", () => {
+  const open = scanDir(fixture({ "database.rules.json": '{\n  "rules": {\n    ".read": true,\n    ".write": true\n  }\n}\n' }));
+  assert.deepEqual(open.findings.map((f) => f.severity), ["critical", "high"]);
+  const safe = scanDir(fixture({ "database.rules.json": '{ "rules": { ".read": "auth != null", ".write": "auth != null" } }\n' }));
+  assert.equal(safe.findings.length, 0);
+});
+
+// ---- SQL / row-level security --------------------------------------------------------------------
+
+test("RLS policies: flags a wide-open write policy, groups open reads, skips the safe shapes", () => {
+  const r = scanDir(
+    fixture({
+      "supabase/migrations/001_init.sql": [
+        "create table public.notes (id uuid primary key, user_id uuid);",
+        "alter table public.notes enable row level security;",
+        'create policy "Allow full access to all users" on public.notes for all to authenticated using (true) with check (true);',
+        'create policy "Anyone can read to browse" on notes for select using (true);',
+        "create policy svc on notes for all to service_role using (true) with check (true);",
+        "create policy narrow on notes as restrictive for update to authenticated using (true) with check (auth.uid() = user_id);",
+        "create policy own_rows on notes for update using (auth.uid() = user_id) with check (true);",
+        "-- create policy commented on notes for delete using (true);",
+        "create policy contact on notes for insert to anon with check (true);",
+      ].join("\n"),
+    }),
+  );
+  const open = byRule(r, "supabase.permissive-policy");
+  assert.deepEqual(
+    open.map((f) => [f.severity, f.value]),
+    [
+      ["high", "notes: for all to authenticated, condition is (true)"],
+      ["medium", "notes: for insert to anon, condition is (true)"],
+    ],
+  );
+  assert.equal(open[0].line, 3);
+  const reads = byRule(r, "supabase.public-read-policy");
+  assert.equal(reads.length, 1);
+  assert.equal(reads[0].severity, "low");
+  assert.equal(r.findings.length, 3, `unexpected extra findings: ${ids(r)}`);
+});
+
+test("RLS policies: a policy that a later migration drops or rewrites is not flagged", () => {
+  const r = scanDir(
+    fixture({
+      "supabase/migrations/001.sql":
+        "create table t (id int, user_id uuid);\nalter table t enable row level security;\ncreate policy open_all on t for all using (true);\ncreate policy loose on t for delete using (true);\n",
+      "supabase/migrations/002.sql":
+        "drop policy if exists open_all on public.t;\ncreate policy open_all on t for all using (auth.uid() = user_id);\nalter policy loose on t using (auth.uid() = user_id);\n",
+    }),
+  );
+  assert.equal(r.findings.length, 0, `fixed policies must not be flagged, got: ${ids(r)}`);
+});
+
+test("RLS not enabled: flagged for a Supabase table, not when a later migration enables it, not for non-Supabase SQL", () => {
+  const flagged = scanDir(
+    fixture({
+      "supabase/migrations/001.sql": "create table public.orders (id int);\ncreate table if not exists profiles (id int);\ncreate table auth_private.audit (id int);\n",
+      "supabase/migrations/002.sql": "ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;\n",
+      "supabase/tests/setup.sql": "create table zz_test_only (id int);\n",
+    }),
+  );
+  const hits = byRule(flagged, "supabase.rls-not-enabled");
+  assert.equal(hits.length, 1);
+  assert.match(hits[0].value, /for: orders$/);
+  assert.equal(hits[0].confidence, "needs_review");
+
+  const prisma = scanDir(fixture({ "prisma/migrations/0001_init/migration.sql": "CREATE TABLE `User` (`id` INTEGER NOT NULL);\ncreate table posts (id int);\n" }));
+  assert.equal(prisma.findings.length, 0, "a MySQL or plain Postgres schema has no Supabase RLS to enable");
+});
+
+// ---- env files -----------------------------------------------------------------------------------
+
+test("env file, no git data: gitignored is left alone (with a note); not ignored is flagged", () => {
+  const ignored = scanDir(fixture({ ".env.local": `STRIPE_SECRET_KEY=${FAKE_STRIPE}\n`, ".gitignore": ".env*\n!.env.example\n" }));
+  assert.equal(ignored.findings.length, 0, `a gitignored local env file is where secrets belong, got: ${ids(ignored)}`);
+  assert.equal(ignored.notes.length, 1);
+  assert.match(ignored.notes[0], /\.env\.local/);
+
+  const exposed = scanDir(fixture({ ".env": `STRIPE_SECRET_KEY=${FAKE_STRIPE}\n`, ".gitignore": "node_modules\n" }));
+  assert.deepEqual(ids(exposed).sort(), ["env.not-ignored", "secrets.stripe-secret"]);
+  const env = byRule(exposed, "env.not-ignored")[0];
+  assert.equal(env.severity, "high");
+  assert.equal(env.confidence, "needs_review", "without git data Caelo must not claim the file is committed");
+  assert.match(env.value, /STRIPE_SECRET_KEY/);
+  assert.ok(!JSON.stringify(exposed).includes("packedFAKEkey"));
+
+  const publicOnly = scanDir(fixture({ ".env": 'VITE_SUPABASE_URL="https://abc.supabase.co"\nVITE_SUPABASE_PUBLISHABLE_KEY="abc"\n' }));
+  assert.deepEqual(publicOnly.findings.map((f) => [f.ruleId, f.severity]), [["env.not-ignored", "low"]]);
+
+  const placeholders = scanDir(fixture({ ".env": "STRIPE_SECRET_KEY=\nAPI_TOKEN=your-token-here\n" }));
+  assert.equal(placeholders.findings.length, 0, "an env file with no real values is not a finding");
+});
+
+test("env file, inside a git repo: tracked is flagged as committed; untracked is not", (t) => {
+  const git = (dir, ...args) => execFileSync("git", ["-C", dir, ...args], { stdio: "ignore" });
+  const dir = fixture({ ".env": `STRIPE_SECRET_KEY=${FAKE_STRIPE}\n`, ".env.local": `OTHER_SECRET=${FAKE_STRIPE}\n`, ".gitignore": ".env.local\n", "app/x.js": "1\n" });
   try {
-    const r = scanDir(dir);
-    assert.ok(
-      r.findings.some((f) => f.ruleId === "secrets.supabase-service-role"),
-      "should flag the service_role JWT",
-    );
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
+    git(dir, "init", "-q");
+    git(dir, "add", "-f", ".env", ".gitignore", "app/x.js");
+  } catch {
+    t.skip("git is not available");
+    return;
   }
+  const r = scanDir(dir);
+  const committed = byRule(r, "env.committed");
+  assert.equal(committed.length, 1);
+  assert.equal(committed[0].file, ".env");
+  assert.equal(committed[0].severity, "high");
+  assert.equal(committed[0].confidence, "confirmed");
+  assert.deepEqual(byRule(r, "secrets.stripe-secret").map((f) => f.file), [".env"], "only the tracked file's secret is flagged");
+  assert.match(r.notes[0], /\.env\.local/);
+
+  // Present, not tracked, not ignored: reported as about to be committed, values still flagged.
+  writeFileSync(path.join(dir, ".env.staging"), `STRIPE_SECRET_KEY=${FAKE_STRIPE}\n`);
+  const staging = byRule(scanDir(dir), "env.not-ignored");
+  assert.deepEqual(staging.map((f) => [f.file, f.severity, f.confidence]), [[".env.staging", "high", "confirmed"]]);
+  rmSync(path.join(dir, ".env.staging"));
+
+  // Scanning a subfolder of the repo still resolves paths against the repo root.
+  writeFileSync(path.join(dir, "app", ".env"), `API_TOKEN=${FAKE_STRIPE}\n`);
+  git(dir, "add", "-f", "app/.env");
+  assert.deepEqual(byRule(scanDir(path.join(dir, "app")), "env.committed").map((f) => f.file), [".env"]);
+});
+
+test("git index parser reads a v2 index and refuses what it cannot vouch for", () => {
+  const entry = (name) => {
+    const len = Math.ceil((62 + name.length + 1) / 8) * 8;
+    const b = Buffer.alloc(len);
+    b.writeUInt16BE(name.length, 60);
+    b.write(name, 62, "utf8");
+    return b;
+  };
+  const header = (version, count) => {
+    const h = Buffer.alloc(12);
+    h.write("DIRC", 0, "latin1");
+    h.writeUInt32BE(version, 4);
+    h.writeUInt32BE(count, 8);
+    return h;
+  };
+  const index = Buffer.concat([header(2, 2), entry(".env"), entry("src/app.js"), Buffer.alloc(20)]);
+  assert.deepEqual([...parseIndex(index)], [".env", "src/app.js"]);
+  assert.equal(parseIndex(Buffer.from("not an index")), null);
+  assert.equal(parseIndex(Buffer.concat([header(9, 0), Buffer.alloc(20)])), null, "unknown version");
+  const split = Buffer.concat([header(2, 1), entry("a"), Buffer.from("link"), Buffer.from([0, 0, 0, 0]), Buffer.alloc(20)]);
+  assert.equal(parseIndex(split), null, "a split index does not list every file");
+});
+
+test("gitignore name matching follows last-match-wins", () => {
+  assert.ok(gitignoreCovers(".env*\n!.env.example\n", ".env.local"));
+  assert.ok(!gitignoreCovers(".env*\n!.env.example\n", ".env.example"));
+  assert.ok(gitignoreCovers("# secrets\n/.env\n", ".env"));
+  assert.ok(gitignoreCovers("*.local\n", ".env.local"));
+  assert.ok(!gitignoreCovers("node_modules\ndist/\n", ".env"));
+});
+
+// ---- walker --------------------------------------------------------------------------------------
+
+test("skips node_modules, build output, .git, lockfiles, binaries and oversized files", () => {
+  const leak = `const k = "${FAKE_STRIPE}";\n`;
+  const r = scanDir(
+    fixture({
+      "node_modules/pkg/index.js": leak,
+      "dist/bundle.js": leak,
+      ".git/config": leak,
+      ".next/server.js": leak,
+      "package-lock.json": leak,
+      "logo.png": leak,
+      "blob.dat": Buffer.concat([Buffer.from([0, 1, 2, 0]), Buffer.from(leak)]),
+      "huge.js": leak + "x".repeat(1_600_000),
+      "src/ok.js": "export const fine = 1;\n",
+    }),
+  );
+  assert.equal(r.findings.length, 0, `nothing in skipped places may be reported, got: ${r.findings.map((f) => f.file)}`);
+  assert.equal(r.examined, 1);
+  assert.equal(r.skipped, 4, "lockfile, png, binary and oversized are counted as skipped");
+});
+
+test("reads UTF-16 files (what Windows PowerShell's > writes) and UTF-8 with a BOM", () => {
+  const text = `const k = "${FAKE_STRIPE}";\n`;
+  const r = scanDir(
+    fixture({
+      "utf16le.js": Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(text, "utf16le")]),
+      "utf16be.js": Buffer.concat([Buffer.from([0xfe, 0xff]), Buffer.from(text, "utf16le").swap16()]),
+      "bom.js": Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(text, "utf8")]),
+    }),
+  );
+  assert.deepEqual(r.findings.map((f) => f.file), ["bom.js", "utf16be.js", "utf16le.js"]);
+});
+
+test("output is deterministic and ordered by severity, then file, then line", () => {
+  const dir = fixture({
+    "z.js": `const a = "${FAKE_STRIPE}";\n`,
+    "a.js": `\n\nconst b = "${FAKE_SB_SECRET}";\nconst c = process.env.${NP}STRIPE_SECRET_KEY;\n`,
+  });
+  const one = scanDir(dir);
+  assert.deepEqual(one.findings.map((f) => `${f.severity} ${f.file}:${f.line}`), ["critical a.js:3", "critical z.js:1", "high a.js:4"]);
+  assert.equal(JSON.stringify(toJson(one)), JSON.stringify(toJson(scanDir(dir))));
+});
+
+// ---- report --------------------------------------------------------------------------------------
+
+test("an empty folder gets no grade instead of a perfect one", () => {
+  const r = scanDir(fixture({}));
+  assert.equal(r.examined, 0);
+  assert.match(formatReport(r, { footer: true }), /grade: n\/a/);
+  assert.doesNotMatch(formatReport(r, { footer: true }), /Solid|100\/100|badge/);
+  assert.equal(toJson(r).grade, null);
+  assert.equal(toJson(r).score, null);
+});
+
+test("the paid-review line: once, last, CLI text only, never in MCP text or JSON", () => {
+  const leaky = scanDir(fixture({ "src/pay.js": `const k = "${FAKE_STRIPE}";\n` }));
+  const clean = scanDir(fixture({ "src/ok.js": "export const fine = 1;\n" }));
+  const paid = /\$|Health Check|caelo\.sh/;
+
+  for (const r of [leaky, clean]) {
+    assert.doesNotMatch(formatReport(r), paid, "the default (MCP) report carries no sales line");
+    assert.doesNotMatch(JSON.stringify(toJson(r)), paid, "JSON carries no sales line");
+  }
+  const lines = formatReport(leaky, { footer: true }).split("\n");
+  assert.equal(lines.filter((l) => paid.test(l)).length, 1, "exactly one line");
+  assert.match(lines.at(-1), /App Health Check, \$490: https:\/\/caelo\.sh$/);
+  assert.doesNotMatch(formatReport(clean, { footer: true }), /\$|Health Check/, "a clean scan is not sold to");
+  assert.match(formatReport(clean, { footer: true }).split("\n").at(-1), /^Solid grade\./, "the badge hint fires on the real top grade");
+  assert.equal(grade(100), "Solid");
+});
+
+test("JSON output has a stable shape", () => {
+  const out = toJson(scanDir(fixture({ "src/pay.js": `const k = "${FAKE_STRIPE}";\n` })));
+  assert.deepEqual(Object.keys(out), ["caelo", "target", "examined", "skipped", "truncated", "score", "grade", "counts", "findings", "notes"]);
+  assert.equal(out.caelo, PKG.version);
+  assert.deepEqual(out.counts, { critical: 1, high: 0, medium: 0, low: 0 });
+  assert.deepEqual(Object.keys(out.findings[0]), ["file", "ruleId", "title", "severity", "line", "value", "why", "fix", "confidence"]);
+});
+
+// ---- CLI -----------------------------------------------------------------------------------------
+
+test("CLI: --version, --help and usage errors", () => {
+  const version = cli(["--version"]);
+  assert.equal(version.stdout.trim(), PKG.version);
+  assert.equal(version.status, 0);
+
+  const help = cli(["--help"]);
+  assert.equal(help.status, 0, "--help is not an error");
+  assert.match(help.stdout, /caelo <path>/);
+  assert.match(help.stdout, /--json/);
+
+  assert.equal(cli([]).status, 64, "no path");
+  assert.equal(cli(["--nope", "."]).status, 64, "unknown option");
+  assert.match(cli(["--nope", "."]).stderr, /unknown option: --nope/);
+  assert.equal(cli([path.join(tmpdir(), "caelo-does-not-exist-xyz")]).status, 64, "missing folder");
+  assert.equal(cli([BIN]).status, 64, "a file is not a folder");
+  assert.equal(cli([".", ".."]).status, 64, "two paths");
+});
+
+test("CLI: exit code 1 on a critical finding, 0 otherwise; paths with spaces work", () => {
+  const leaky = fixture({ "my app/src/pay.js": `const k = "${FAKE_STRIPE}";\n` }, "roast with space-");
+  const bad = cli([path.join(leaky, "my app")]);
+  assert.equal(bad.status, 1);
+  assert.match(bad.stdout, /findings: 1 critical, 0 high, 0 medium, 0 low/);
+  assert.match(bad.stdout, /src\/pay\.js:1 {2}\(secrets\.stripe-secret\)/);
+  assert.ok(!bad.stdout.includes("packedFAKEkey"));
+
+  const clean = cli(["."], { cwd: fixture({ "src/ok.js": "export const fine = 1;\n" }) });
+  assert.equal(clean.status, 0);
+  assert.match(clean.stdout, /grade: Solid \(100\/100\)/);
+});
+
+test("CLI: --json prints parseable JSON with no color codes and no sales line", () => {
+  const dir = fixture({ "src/pay.js": `const k = "${FAKE_STRIPE}";\n` });
+  const res = cli([dir, "--json"], { env: { ...process.env, FORCE_COLOR: "1" } });
+  assert.equal(res.status, 1);
+  const out = JSON.parse(res.stdout);
+  assert.equal(out.counts.critical, 1);
+  assert.equal(out.grade, "Needs work");
+  assert.doesNotMatch(res.stdout, /\$490|Health Check|\u001b\[/);
+  assert.doesNotMatch(cli([dir], { env: { ...process.env, FORCE_COLOR: "1" } }).stdout, /\u001b\[/, "text output is plain");
+});
+
+// ---- MCP -----------------------------------------------------------------------------------------
+
+test("MCP server over stdio: reports the package version and returns a report with no sales line", async () => {
+  const dir = fixture({ "src/pay.js": `const k = "${FAKE_STRIPE}";\n` });
+  const child = spawn(process.execPath, [BIN, "--mcp"], { stdio: ["pipe", "pipe", "ignore"] });
+  const send = (msg) => child.stdin.write(JSON.stringify(msg) + "\n");
+  const replies = new Map();
+  let buf = "";
+  const done = new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("MCP server did not answer in time")), 20_000);
+    child.on("error", reject);
+    child.stdout.on("data", (chunk) => {
+      buf += chunk;
+      for (let i = buf.indexOf("\n"); i >= 0; i = buf.indexOf("\n")) {
+        const line = buf.slice(0, i).trim();
+        buf = buf.slice(i + 1);
+        if (!line) continue;
+        const msg = JSON.parse(line);
+        replies.set(msg.id, msg);
+        if (msg.id === 1) {
+          send({ jsonrpc: "2.0", method: "notifications/initialized" });
+          send({ jsonrpc: "2.0", id: 2, method: "tools/list" });
+          send({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "roast_project", arguments: { path: dir } } });
+          send({ jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "roast_project", arguments: { path: path.join(dir, "nope") } } });
+        }
+        if (msg.id === 4) {
+          clearTimeout(timer);
+          resolve();
+        }
+      }
+    });
+  });
+  send({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "caelo-test", version: "0" } } });
+  try {
+    await done;
+  } finally {
+    child.kill();
+  }
+  assert.deepEqual(replies.get(1).result.serverInfo, { name: "caelo", version: PKG.version });
+  assert.deepEqual(replies.get(2).result.tools.map((tool) => tool.name), ["roast_project"]);
+  const text = replies.get(3).result.content[0].text;
+  assert.match(text, /findings: 1 critical/);
+  assert.match(text, /secrets\.stripe-secret/);
+  assert.doesNotMatch(text, /\$|Health Check|caelo\.sh|badge/, "MCP output is findings only");
+  assert.ok(!text.includes("packedFAKEkey"));
+  assert.equal(replies.get(4).result.isError, true);
+});
+
+// ---- the repo itself -----------------------------------------------------------------------------
+
+test("manifests agree on the version", () => {
+  const server = JSON.parse(readFileSync(path.join(ROOT, "server.json"), "utf8"));
+  assert.equal(server.version, PKG.version);
+  assert.equal(server.packages[0].version, PKG.version);
+  assert.ok(server.description.length <= 100, "registry schema caps description at 100 characters");
+});
+
+test("shipped text follows the house rules: no long dashes, no banned words, only the $490 price in output", () => {
+  const shipped = ["README.md", "bin/caelo.js", "lib/git.js", "lib/mcp.js", "lib/report.js", "lib/rules.js", "lib/scan.js", "lib/version.js"];
+  for (const rel of shipped) {
+    const text = readFileSync(path.join(ROOT, rel), "utf8");
+    assert.doesNotMatch(text, /[‒-―]/, `${rel} contains an en or em dash`);
+    assert.doesNotMatch(text, /pentest|guarantee|will secure/i, `${rel} contains a banned word`);
+    if (rel !== "README.md") assert.deepEqual(text.match(/\$\d[\d,]*\d/g) ?? [], rel === "lib/report.js" ? ["$490"] : [], `${rel} prices`);
+  }
+  const readme = readFileSync(path.join(ROOT, "README.md"), "utf8");
+  const allowed = new Set(["$490", "$24,500", "$2,500", "$7,500", "$690"]);
+  for (const price of readme.match(/\$\d[\d,]*\d/g) ?? []) assert.ok(allowed.has(price), `README price ${price} is not on the price list`);
+});
+
+test("the sample output in the README is what the current code prints", () => {
+  const readme = readFileSync(path.join(ROOT, "README.md"), "utf8").replace(/\r\n/g, "\n");
+  const block = /<!-- sample-output:start -->\n```text\n([\s\S]*?)\n```\n<!-- sample-output:end -->/.exec(readme);
+  assert.ok(block, "README must contain the sample-output block");
+  const actual = formatReport(scanDir(fixture(demoApp, "my-app-")), { footer: true });
+  // Line 1 is the scanned path, which differs per machine; everything after it must match exactly.
+  assert.equal(block[1].split("\n").slice(1).join("\n"), actual.split("\n").slice(1).join("\n"));
+  assert.match(block[1].split("\n")[0], /^Caelo roast: /);
+});
+
+test("Caelo scanning its own repository finds nothing", () => {
+  const r = scanDir(ROOT);
+  assert.deepEqual(r.findings.map((f) => `${f.ruleId} ${f.file}:${f.line}`), []);
 });
