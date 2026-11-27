@@ -4,13 +4,14 @@
 # By Irth Labs. https://caelo.sh
 #
 # The image is built from this repo, so it matches the tagged source exactly.
-# Scan a folder by mounting it at /scan:
+# With no arguments the image starts the MCP server over stdio, so MCP clients
+# and catalogs can run it directly:
+#
+#   docker run --rm -i -v "$PWD:/scan" ghcr.io/arthi-arumugam-git/caelo
+#
+# Pass a folder to run the one-shot CLI scan instead (mount it at /scan):
 #
 #   docker run --rm -v "$PWD:/scan" ghcr.io/arthi-arumugam-git/caelo /scan
-#
-# Run the MCP server over stdio instead:
-#
-#   docker run --rm -i -v "$PWD:/scan" ghcr.io/arthi-arumugam-git/caelo --mcp
 
 FROM node:20-alpine
 
@@ -29,8 +30,9 @@ COPY README.md LICENSE ./
 # Caelo only reads files, so run as the built-in unprivileged node user.
 USER node
 
-# Scans run against whatever is mounted at /scan.
+# A CLI scan runs against whatever is mounted at /scan.
 WORKDIR /scan
 
+# Default (no args) starts the stdio MCP server; pass /scan (or any path) for the CLI.
 ENTRYPOINT ["node", "/app/bin/caelo.js"]
-CMD ["/scan"]
+CMD ["--mcp"]
