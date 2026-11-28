@@ -6,6 +6,7 @@ import path from "node:path";
 import { scanDir } from "../lib/scan.js";
 import { formatReport, toJson } from "../lib/report.js";
 import { redact } from "../lib/rules.js";
+import { findGitDir } from "../lib/git.js";
 
 test("each work budget preserves explicit partial coverage and withholds a grade", () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "caelo-coverage-"));
@@ -43,4 +44,22 @@ test("read failures and oversize text retain separate safe coverage reasons", ()
 
 test("redaction returns length without any value-derived prefix or suffix", () => {
   assert.equal(redact("sample-private-value"), "[redacted] (20 chars)");
+});
+
+test("Git discovery honors the selected root and validates linked metadata", () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "caelo-git-scope-"));
+  try {
+    const work = path.join(root, "work");
+    const metadata = path.join(root, "metadata");
+    mkdirSync(work);
+    mkdirSync(metadata);
+    const gitfile = path.join(work, ".git");
+    writeFileSync(gitfile, `gitdir: ${metadata}\n`);
+    assert.equal(findGitDir(work, work), null);
+    writeFileSync(path.join(metadata, "gitdir"), gitfile + "\n");
+    assert.equal(findGitDir(work, work).gitDir, metadata);
+    const subfolder = path.join(work, "subfolder");
+    mkdirSync(subfolder);
+    assert.equal(findGitDir(subfolder, subfolder), null);
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });
