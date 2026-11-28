@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.arthi-arumugam-git/caelo",
   "title": "Caelo",
-  "description": "Caelo by Irth Labs is a free local developer security scanner for AI-built products, with a CLI and MCP server.",
+  "description": "Caelo: free local security scanner for AI-built products. CLI and MCP server by Irth Labs.",
   "version": "0.1.4",
   "websiteUrl": "https://caelo.sh",
   "repository": {

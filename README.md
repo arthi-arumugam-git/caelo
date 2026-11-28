@@ -161,7 +161,7 @@ asdf install caelo latest
 npm install -g caelo
 ```
 
-Requires Node.js 18 or newer. The Nix flake supplies its own pinned runtime and locks the reviewed 0.1.3 source and npm dependency closure. Linux x86_64 CLI and MCP checks passed.
+Requires Node.js 18 or newer. The Nix flake supplies its own pinned runtime and locks the published 0.1.4 source and npm dependency closure. Linux x86_64 CLI and MCP checks passed.
 
 ## Use it inside your editor (MCP)
 
@@ -236,12 +236,12 @@ Add to `.pre-commit-config.yaml`:
 ```yaml
 repos:
   - repo: https://github.com/arthi-arumugam-git/caelo
-    rev: v0.1.3
+    rev: v0.1.4
     hooks:
       - id: caelo
 ```
 
-The v0.1.3 hook runs `npx -y caelo@0.1.3 .`, so its executable version agrees with the reviewed hook revision.
+The v0.1.4 hook runs `npx -y caelo@0.1.4 .`, so its executable version agrees with the reviewed hook revision.
 
 ## Show it off
 
