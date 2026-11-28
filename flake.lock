@@ -3,17 +3,17 @@
     "caelo-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1795830935,
-        "narHash": "sha256-9YXCqy5hF2mWiu6nCOvFudaN/Ra6f6aLCn4VCe8yPWA=",
+        "lastModified": 1795842728,
+        "narHash": "sha256-Z8gaoDwCEHTVneC/iD6z18gEgc+RE4DJa03B9urAgiQ=",
         "owner": "arthi-arumugam-git",
         "repo": "caelo",
-        "rev": "bf5030b69d11fd098b1616b44fc6097296be8977",
+        "rev": "472bba93ef65241ed196322bd02082602528573e",
         "type": "github"
       },
       "original": {
         "owner": "arthi-arumugam-git",
         "repo": "caelo",
-        "rev": "bf5030b69d11fd098b1616b44fc6097296be8977",
+        "rev": "472bba93ef65241ed196322bd02082602528573e",
         "type": "github"
       }
     },

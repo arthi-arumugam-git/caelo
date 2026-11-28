@@ -1,9 +1,9 @@
 {
-  description = "Caelo - free, local developer security scanner (CLI + MCP server)";
+  description = "Caelo - free, local developer security scanner for AI-built products (CLI + MCP server)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    caelo-src = { url = "github:arthi-arumugam-git/caelo/bf5030b69d11fd098b1616b44fc6097296be8977"; flake = false; };
+    caelo-src = { url = "github:arthi-arumugam-git/caelo/472bba93ef65241ed196322bd02082602528573e"; flake = false; };
     flake-utils.url = "github:numtide/flake-utils";
   };
 
@@ -15,7 +15,7 @@
       {
         packages.default = pkgs.buildNpmPackage {
           pname = "caelo";
-          version = "0.1.3";
+          version = "0.1.4";
 
           # Immutable published release source. The lock records its content hash.
           src = pkgs.lib.cleanSourceWith {
@@ -28,7 +28,7 @@
           };
 
           # Hash of the npm dependency closure, derived from package-lock.json.
-          npmDepsHash = "sha256-I1xPk25EAyUfUMt9RaMjeSDesSHchaQz3cCwj/4ks6A=";
+          npmDepsHash = "sha256-vULABYKlN/dphZP+j0ajZh6FQDzKR1dX5mDJcxIflbI=";
 
           # Caelo is plain ESM with no compile step; skip the default `npm run build`.
           dontNpmBuild = true;
@@ -38,7 +38,7 @@
           # Both `caelo .` (scan) and `caelo --mcp` (MCP server) then work offline.
 
           meta = {
-            description = "Free, local developer security scanner (CLI + MCP server)";
+            description = "Free, local developer security scanner for AI-built products (CLI + MCP server)";
             homepage = "https://caelo.sh";
             license = pkgs.lib.licenses.mit;
             mainProgram = "caelo";
