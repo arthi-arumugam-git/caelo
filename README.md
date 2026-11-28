@@ -141,6 +141,9 @@ Caelo runs fine with a one-off `npx caelo .`, but you can also install it for go
 # Homebrew (macOS / Linux)
 brew install arthi-arumugam-git/tap/caelo
 
+# Nix (locked release source and dependencies)
+nix run github:arthi-arumugam-git/caelo -- .
+
 # Scoop (Windows)
 scoop bucket add caelo https://github.com/arthi-arumugam-git/scoop-caelo
 scoop install caelo
@@ -156,7 +159,7 @@ asdf install caelo latest
 npm install -g caelo
 ```
 
-Requires Node.js 18 or newer.
+Requires Node.js 18 or newer. The Nix flake supplies its own pinned runtime and locks the reviewed 0.1.3 source and npm dependency closure. Linux x86_64 CLI and MCP checks passed.
 
 ## Use it inside your editor (MCP)
 
