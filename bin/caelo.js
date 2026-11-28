@@ -58,7 +58,7 @@ async function main() {
   }
   const result = scanDir(root);
   console.log(flags.includes("--json") ? JSON.stringify(toJson(result), null, 2) : formatReport(result, { footer: true }));
-  process.exitCode = result.findings.some((f) => f.severity === "critical") ? 1 : 0;
+  process.exitCode = result.findings.some((f) => f.severity === "critical") ? 1 : result.status === "partial" ? 2 : 0;
 }
 
 main().catch((err) => {

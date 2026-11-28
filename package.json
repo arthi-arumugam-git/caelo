@@ -2,7 +2,7 @@
   "name": "caelo",
   "version": "0.1.3",
   "mcpName": "io.github.arthi-arumugam-git/caelo",
-  "description": "Caelo: see straight to the bottom of your code. Free security roast for AI-built apps (Lovable, Bolt, Cursor, v0, Replit): exposed keys, browser-leaked secrets, Supabase RLS, open Firebase rules, committed .env. Runs locally, reads files only, redacts secrets. CLI + MCP server.",
+  "description": "Caelo by Irth Labs is a free local security scanner for AI-built apps, with a CLI and MCP server.",
   "type": "module",
   "bin": {
     "caelo": "bin/caelo.js"

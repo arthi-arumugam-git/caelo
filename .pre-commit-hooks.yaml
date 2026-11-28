@@ -1,6 +1,6 @@
 - id: caelo
   name: Caelo security scan
   description: Scan the repo for exposed keys and open databases before committing.
-  entry: npx -y caelo .
+  entry: npx -y caelo@0.1.3 .
   language: node
   pass_filenames: false

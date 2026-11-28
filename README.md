@@ -6,9 +6,7 @@
 
 **See straight to the bottom of your code.**
 
-Caelo is a free, MIT-licensed security scanner for apps built with AI coding tools (Lovable, Bolt,
-Cursor, v0, Replit). It looks for the leaks those apps ship most often and prints a plain-English fix
-for each one.
+Caelo by [Irth Labs](https://www.irthlabs.com/) is a free local security scanner for AI-built apps, with a CLI and MCP server. It is MIT-licensed and prints a plain-English fix for each finding.
 
 ```bash
 npx caelo .
@@ -16,7 +14,7 @@ npx caelo .
 
 It runs entirely on your machine. It reads your files as data, never executes your code, makes no
 network calls, and uses no AI model: every check is a fixed pattern, so the same folder always gives
-the same report. Secret values are redacted before they are printed (you see `sk_l…cdEF (43 chars)`,
+the same report. Secret values are redacted before they are printed (you see `[redacted] (43 chars)`,
 never the key).
 
 ## What the output looks like
@@ -34,7 +32,7 @@ grade: Critical (2/100)
 CRITICAL (2)
 - Stripe live secret key in source
     .env:2  (secrets.stripe-secret)
-    value: sk_l…cdEF (43 chars)
+    value: [redacted] (43 chars)
     why: Matches the Stripe live secret key format.
     fix: Revoke this key in the provider dashboard now (assume it is compromised), issue a new one, keep it only in server-side environment variables, and purge it from git history.
 - Supabase service-role key in source
@@ -279,3 +277,8 @@ Check. That line never appears in `--json` output or in the MCP tool's output. D
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+
+Git awareness is limited to repository discovery within the selected scan folder. A root .git file can select linked-worktree metadata outside that folder. Only Git metadata and ignore files are read for this purpose. Caelo never executes Git. Selecting a subfolder does not read a parent repository's index.
+
+Incomplete scans preserve findings and return explicit coverage-gap counts. Their score and grade are unavailable, and the CLI returns 2 unless a critical finding requires exit 1.

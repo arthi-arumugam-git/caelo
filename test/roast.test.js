@@ -341,10 +341,10 @@ test("env file, inside a git repo: tracked is flagged as committed; untracked is
   assert.deepEqual(staging.map((f) => [f.file, f.severity, f.confidence]), [[".env.staging", "high", "confirmed"]]);
   rmSync(path.join(dir, ".env.staging"));
 
-  // Scanning a subfolder of the repo still resolves paths against the repo root.
+  // Selecting a subfolder limits Git discovery to that folder.
   writeFileSync(path.join(dir, "app", ".env"), `API_TOKEN=${FAKE_STRIPE}\n`);
   git(dir, "add", "-f", "app/.env");
-  assert.deepEqual(byRule(scanDir(path.join(dir, "app")), "env.committed").map((f) => f.file), [".env"]);
+  assert.deepEqual(byRule(scanDir(path.join(dir, "app")), "env.committed").map((f) => f.file), []);
 });
 
 test("git index parser reads a v2 index and refuses what it cannot vouch for", () => {
@@ -516,7 +516,7 @@ test("the paid-review line: once, last, CLI text only, never in MCP text or JSON
 
 test("JSON output has a stable shape", () => {
   const out = toJson(scanDir(fixture({ "src/pay.js": `const k = "${FAKE_STRIPE}";\n` })));
-  assert.deepEqual(Object.keys(out), ["caelo", "target", "examined", "skipped", "truncated", "score", "grade", "counts", "findings", "notes"]);
+  assert.deepEqual(Object.keys(out), ["schemaVersion", "caelo", "status", "coverage", "target", "examined", "skipped", "truncated", "score", "grade", "counts", "findings", "notes"]);
   assert.equal(out.caelo, PKG.version);
   assert.deepEqual(out.counts, { critical: 1, high: 0, medium: 0, low: 0 });
   assert.deepEqual(Object.keys(out.findings[0]), ["file", "ruleId", "title", "severity", "line", "value", "why", "fix", "confidence"]);
