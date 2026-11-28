@@ -1,4 +1,4 @@
-import test from "node:test";
+import test, { mock } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import os from "node:os";
@@ -7,6 +7,8 @@ import { scanDir } from "../lib/scan.js";
 import { formatReport, toJson } from "../lib/report.js";
 import { redact } from "../lib/rules.js";
 import { findGitDir } from "../lib/git.js";
+import fs from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
 
 test("each work budget preserves explicit partial coverage and withholds a grade", () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "caelo-coverage-"));
@@ -62,4 +64,25 @@ test("Git discovery honors the selected root and validates linked metadata", () 
     mkdirSync(subfolder);
     assert.equal(findGitDir(subfolder, subfolder), null);
   } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("an unreadable nested directory marks the ordinary scan partial", () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "caelo-unreadable-"));
+  const nested = path.join(root, "nested");
+  mkdirSync(nested);
+  const original = fs.opendirSync;
+  const replacement = mock.method(fs, "opendirSync", (directory, ...args) => {
+    if (directory === nested) throw Object.assign(new Error("Read unavailable"), { code: "EACCES" });
+    return original(directory, ...args);
+  });
+  syncBuiltinESMExports();
+  try {
+    const result = scanDir(root);
+    assert.equal(result.status, "partial");
+    assert.equal(result.coverage.gaps.directory_read, 1);
+  } finally {
+    replacement.mock.restore();
+    syncBuiltinESMExports();
+    rmSync(root, { recursive: true, force: true });
+  }
 });
