@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.4
+
+- Clarifies Caelo as a local developer security scanner for AI-built products.
+- Aligns package, MCP and client descriptions. Checks and findings are unchanged.
+
 ## 0.1.3
 
 - File, directory, entry, elapsed-work and retained project-text budgets produce explicit partial coverage. Incomplete scans withhold the score, grade and badge invitation.

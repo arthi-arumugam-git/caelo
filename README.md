@@ -6,9 +6,9 @@
 
 **See straight to the bottom of your code.**
 
-Caelo by [Irth Labs](https://www.irthlabs.com/) is a free local developer security scanner, with a CLI and MCP server. It checks project files for exposed keys, permissive access rules and configuration issues. It is MIT-licensed and prints a plain-English fix for each finding.
+Caelo by [Irth Labs](https://www.irthlabs.com/) is a free local developer security scanner for AI-built products, with a CLI and MCP server. It checks project files for exposed keys, permissive access rules and configuration issues. It is MIT-licensed and prints a plain-English fix for each finding.
 
-Irth Labs reviews AI-built products and cleans up business data for AI. Those are separate human services. Caelo reads project files; it does not clean or change business data.
+Irth Labs finds and fixes security flaws in AI-built products and cleans up business data for AI. Those are separate human services. Caelo reads project files; it does not clean or change business data.
 
 ```bash
 npx caelo .
@@ -271,7 +271,7 @@ Found a false positive or a miss? Please open an issue with the smallest file th
 Caelo is made by Irth Labs and stays free under the MIT license. Irth Labs also sells human help,
 which is how this tool is funded:
 
-- **App Health Check ($490).** A person reviews every finding, runs the checks that need your consent
+- **App Health Check ($490).** A security audit: a person checks findings, runs the checks that need your consent
   (such as testing whether your live Supabase tables really enforce row-level security), and gives you a
   fixed quote for the fixes.
 - **Full Cleanup ($24,500).** For a company that needs its AI-built app reviewed and fixed, and its business data cleaned up for AI.
