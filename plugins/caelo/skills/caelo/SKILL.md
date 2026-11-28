@@ -1,11 +1,11 @@
 ---
 name: caelo
-description: Run a free, local Caelo security scan of the current project and explain the results. Use before shipping or deploying, when the user worries about leaked API keys, secrets exposed in the browser bundle, or an open database, or when auditing an AI-built app for security problems.
+description: Run a free, local Caelo security scan of the current project and explain the results. Use before shipping or deploying, when the user worries about leaked API keys, secrets exposed in the browser bundle, or an open database, or when reviewing a project for security problems.
 ---
 
 # Caelo security scan
 
-Caelo is a free, local security scanner for AI-built apps, made by Irth Labs. It reads the files in a project and reports common ways that apps leak secrets or expose data before launch. It runs on the user's machine, reads files only, uploads nothing, and redacts secrets in its output.
+Caelo is a free, local developer security scanner, made by Irth Labs. It reads the files in a project and reports common ways that apps leak secrets or expose data before launch. It runs on the user's machine, reads files only, uploads nothing, and redacts secrets in its output.
 
 Use this skill to run Caelo against the project the user is working in and to explain what it finds in plain language.
 

@@ -6,7 +6,7 @@
 
 **See straight to the bottom of your code.**
 
-Caelo by [Irth Labs](https://www.irthlabs.com/) is a free local security scanner for AI-built apps, with a CLI and MCP server. It checks project files for exposed keys, permissive access rules and configuration issues. It is MIT-licensed and prints a plain-English fix for each finding.
+Caelo by [Irth Labs](https://www.irthlabs.com/) is a free local developer security scanner, with a CLI and MCP server. It checks project files for exposed keys, permissive access rules and configuration issues. It is MIT-licensed and prints a plain-English fix for each finding.
 
 Irth Labs reviews AI-built products and cleans up business data for AI. Those are separate human services. Caelo reads project files; it does not clean or change business data.
 

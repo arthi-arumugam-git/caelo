@@ -1,6 +1,6 @@
 # Caelo skill for Claude Code
 
-A Claude Code skill that runs Caelo, a free and local security scanner for AI-built apps, against the project you are working in and explains the results.
+A Claude Code skill that runs Caelo, a free and local developer security scanner, against the project you are working in and explains the results.
 
 ## What it does
 

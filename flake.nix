@@ -1,5 +1,5 @@
 {
-  description = "Caelo - free, local security scanner for apps built with AI coding tools (CLI + MCP server)";
+  description = "Caelo - free, local developer security scanner (CLI + MCP server)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -38,7 +38,7 @@
           # Both `caelo .` (scan) and `caelo --mcp` (MCP server) then work offline.
 
           meta = {
-            description = "Free, local security scanner for apps built with AI coding tools (CLI + MCP server)";
+            description = "Free, local developer security scanner (CLI + MCP server)";
             homepage = "https://caelo.sh";
             license = pkgs.lib.licenses.mit;
             mainProgram = "caelo";

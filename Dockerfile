@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 #
-# Caelo: free, local security scanner for apps built with AI coding tools.
+# Caelo: free, local developer security scanner.
 # By Irth Labs. https://caelo.sh
 #
 # The image is built from this repo, so it matches the tagged source exactly.

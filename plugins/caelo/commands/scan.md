@@ -5,7 +5,7 @@ argument-hint: "[path]"
 
 Run a Caelo security scan on the path in $ARGUMENTS, or on the current project root if no path is given.
 
-Caelo is a free, local security scanner for AI-built apps (made by Irth Labs). It reads files only, uploads nothing, and redacts every secret value it reports.
+Caelo is a free, local developer security scanner (made by Irth Labs). It reads files only, uploads nothing, and redacts every secret value it reports.
 
 How to run it:
 
