@@ -59,7 +59,7 @@ test("Git discovery honors the selected root and validates linked metadata", () 
     writeFileSync(gitfile, `gitdir: ${metadata}\n`);
     assert.equal(findGitDir(work, work), null);
     writeFileSync(path.join(metadata, "gitdir"), gitfile + "\n");
-    assert.equal(findGitDir(work, work).gitDir, metadata);
+    assert.equal(findGitDir(work, work).gitDir, fs.realpathSync(metadata));
     const subfolder = path.join(work, "subfolder");
     mkdirSync(subfolder);
     assert.equal(findGitDir(subfolder, subfolder), null);
