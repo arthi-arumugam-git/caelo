@@ -124,11 +124,11 @@ npx caelo --version
 npx caelo --help
 ```
 
-Exit code `0` means no critical finding, `1` means at least one critical finding, `2` is an internal
-error and `64` is bad usage. Output is plain text with no color codes, so it reads the same in a
+Exit code `0` means a completed scan with no critical finding, `1` means at least one critical finding,
+`2` means incomplete coverage or an internal error, and `64` is bad usage. Output is plain text with no color codes, so it reads the same in a
 terminal, a pipe or a CI log.
 
-`--json` prints `caelo` (version), `target`, `examined`, `skipped`, `truncated`, `score`, `grade`,
+`--json` prints `schemaVersion` (1), `status`, `coverage`, `caelo` (version), `target`, `examined`, `skipped`, `truncated`, `score`, `grade`,
 `counts`, `findings` and `notes`. Each finding has `file`, `line`, `ruleId`, `title`, `severity`, a
 redacted `value`, `why`, `fix` and `confidence` (`confirmed` or `needs_review`), plus `occurrences`
 when one browser-exposed variable name is used in several files.
@@ -236,7 +236,7 @@ repos:
       - id: caelo
 ```
 
-The hook runs `npx -y caelo .`, so it always uses the newest published scanner.
+The v0.1.3 hook runs `npx -y caelo@0.1.3 .`, so its executable version agrees with the reviewed hook revision.
 
 ## Show it off
 

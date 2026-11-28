@@ -86,3 +86,18 @@ test("an unreadable nested directory marks the ordinary scan partial", () => {
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("known packaged archives are intentional exclusions while oversized text is partial", () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "caelo-archives-"));
+  try {
+    for (const extension of ["mcpb", "vsix", "tgz"]) {
+      writeFileSync(path.join(root, `candidate.${extension}`), Buffer.alloc(1_500_001));
+    }
+    const result = scanDir(root);
+    assert.equal(result.status, "completed");
+    assert.equal(result.skipped, 3);
+    assert.deepEqual(result.coverage.gaps, {});
+    writeFileSync(path.join(root, "ordinary.txt"), "a".repeat(1_500_001));
+    assert.equal(scanDir(root).status, "partial");
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});

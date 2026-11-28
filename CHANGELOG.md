@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.1.3 (unreleased)
+## 0.1.3
+
+- File, directory, entry, elapsed-work and retained project-text budgets produce explicit partial coverage. Incomplete scans withhold the score, grade and badge invitation.
+- JSON reports carry schema version 1, completion status and safe coverage-gap counts. Exit 2 also covers incomplete scans. Known MCPB, VSIX and TGZ archives are intentional exclusions.
+- Secret masking reveals the character count without a secret-derived prefix or suffix.
+- Repository discovery stops at the selected folder. Linked worktree metadata requires a verified pointer back to that folder.
+- Pre-commit execution pins the reviewed release. Manual container builds use separate tags, and only a matching stable published release promotes latest. The container uses a digest-pinned Node 24 base.
 
 Security fixes. A repository being scanned is untrusted input; before this release a crafted one could
 stall Caelo or write its own text into the report. Upgrade if you run Caelo on code you did not write

@@ -16,7 +16,7 @@ const USAGE = `usage:
   caelo --version        print the version
   caelo --help           print this help
 
-exit codes: 0 no critical findings, 1 at least one critical finding, 2 internal error, 64 bad usage`;
+exit codes: 0 no critical findings, 1 at least one critical finding, 2 incomplete coverage or internal error, 64 bad usage`;
 
 const FLAGS = new Set(["--mcp", "--json", "--help", "-h", "--version", "-v"]);
 
